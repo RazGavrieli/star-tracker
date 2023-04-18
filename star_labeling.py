@@ -24,19 +24,17 @@ def detect_stars(img_name, create_json: bool = False ,create_image: bool = False
 
     stars = []
     for i, c in enumerate(contours):
-        # Get the bounding box for the contour
         x, y, w, h = cv2.boundingRect(c)
         
         # Filter out contours that are too large
         if w*h > 500:
             continue
         
-        # Calculate the circularity of the contour
+        # Filter out contours that are not circular enough
         area = cv2.contourArea(c)
         perimeter = cv2.arcLength(c, True)
         if perimeter != 0:
             circularity = 4*math.pi*(area/(perimeter*perimeter))
-            # Filter out contours that are not circular enough
             if circularity < 0:
                 continue
         
@@ -112,7 +110,7 @@ def match_stars_random(stars1, stars2):
         random_stars2 = rand.sample(stars2, 3)
         if not (random_stars1[0][3] >= random_stars1[1][3] >= random_stars1[2][3] or random_stars2[0][3] >= random_stars2[1][3] >= random_stars2[2][3]):
             continue
-        # check if it is a valid posibility
+        # check if the triangles formed by the stars are similar
         triangle1 = (distance(random_stars1[0], random_stars1[1]), distance(random_stars1[1], random_stars1[2]), distance(random_stars1[2], random_stars1[0]))
         triangle2 = (distance(random_stars2[0], random_stars2[1]), distance(random_stars2[1], random_stars2[2]), distance(random_stars2[2], random_stars2[0]))
         if not same_triangles(triangle1, triangle2, 0.05):
@@ -187,7 +185,6 @@ def match_stars(stars1, stars2):
 def validate_transformation(stars1, stars2, treshold, bestTransformation):
     # print("best amount of matches: ", len(bestTransformation))
     # print("best transformation: ", bestTransformation)
-    
     matched_stars = []
     used_stars = set()
     for i in range(len(bestTransformation)):
@@ -269,7 +266,7 @@ def same_triangles(triangle1, triangle2, tolerance=0.1):
     return True
 
 if __name__ == "__main__":
-    print(find_common_stars('data/ST_db1.png', 'data/fr1.jpg'))
+    # print(find_common_stars('data/ST_db1.png', 'data/fr1.jpg'))
     print(find_common_stars('data/stars.png', 'data/stars2.png'))
     # print(find_common_stars('data/fr2.jpg', 'data/fr1.jpg'))
 
