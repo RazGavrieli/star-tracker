@@ -1,37 +1,37 @@
 import cv2
 import json
 import matplotlib.pyplot as plt
+import numpy as np
 
 def detect_stars(img_name, create_json: bool = False ,create_image: bool = False) -> list:
-    # Load the image
+    """
+    Function to detect stars in an image.
+
+    Args:
+        img_name (str): Name of the image file.
+        create_json (bool): Flag to create a json file with the star coordinates (default: False).
+        create_image (bool): Flag to create an image with the star coordinates (default: False).
+
+    Returns:
+        list: List of star tuples, each represented as (x, y, r, b).
+    """
     img = cv2.imread(img_name)
-    # Convert the image to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Apply a threshold to isolate the brightest objects in the image
     _, thresh = cv2.threshold(gray, 160, 200, cv2.THRESH_BINARY)
-    # Find contours in the thresholded image
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Create a list to store the coordinates of the brightest stars
     stars = []
-    # Iterate through the contours and filter out the small ones (which are likely noise)
     for i, c in enumerate(contours):
-        # Get the bounding box coordinates of the contour
         x, y, w, h = cv2.boundingRect(c)
-        
-        # Calculate the radius of the bounding box
         r = int((w + h) / 4)
-        
-        # Calculate the brightness of the star (average pixel value in the bounding box)
         b = int(gray[y:y+h, x:x+w].mean())
-        
         # Store the coordinates of the star as x,y,r,b
         stars.append((x + w/2, y + h/2, r, b))
 
 
-
     # Sort stars by brightness
     stars.sort(key=lambda x: x[3], reverse=True)
+    
     if create_image:
         for i, (x, y, r, b) in enumerate(stars):
             # Draw a circle and label text around the center of the contour
@@ -48,68 +48,92 @@ def detect_stars(img_name, create_json: bool = False ,create_image: bool = False
         with open(img_name.split('.')[0]+'_data.json', 'w') as f:
             json.dump(stars, f)
 
-    return stars       
+    return stars    
+
+def transform_point_set(point_set_to_transform, two_source_points, two_target_points):
+    # Convert the point set to a NumPy array
+    point_set = np.array(point_set_to_transform)
+    
+    # Add a column of ones to the point set
+    point_set_ones = np.hstack([point_set, np.ones((len(point_set), 1))])
+    
+    # Compute the affine transformation matrix
+    A = np.vstack([
+        [two_source_points[0][0], two_source_points[0][1], 1, 0, 0, 0],
+        [0, 0, 0, two_source_points[0][0], two_source_points[0][1], 1],
+        [two_source_points[1][0], two_source_points[1][1], 1, 0, 0, 0],
+        [0, 0, 0, two_source_points[1][0], two_source_points[1][1], 1],
+        [two_source_points[2][0], two_source_points[2][1], 1, 0, 0, 0],
+        [0, 0, 0, two_source_points[2][0], two_source_points[2][1], 1]
+    ])
+    b = np.array([two_target_points[0][0], two_target_points[0][1], two_target_points[1][0], two_target_points[1][1], two_target_points[2][0], two_target_points[2][1]])
+    T = np.linalg.solve(A, b)
+    T = np.reshape(np.append(T, [0, 0, 1]), (3, 3))
+    
+    # Apply the affine transformation to the point set
+    transformed_point_set = np.dot(point_set_ones, T.T)[:, :2]
+    
+    return transformed_point_set.tolist()
 
 def match_stars(stars1, stars2):
-    matched_pairs = []
-    found = False
-    for star1_1 in range(len(stars1)):
-        found = False
-        for star1_2 in range(len(stars1)):
-            for star1_3 in range(len(stars1)):
-                for star2_1 in range(len(stars2)):
-                    for star2_2 in range(len(stars2)):
-                        for star2_3 in range(len(stars2)):
-                            if star1_1 < star1_2 and star1_1 < star1_3 and star1_2 < star1_3 and star2_1 < star2_2 and star2_1 < star2_3 and star2_2 < star2_3:
-                                triangle1 = (distance(stars1[star1_1], stars1[star1_2]), distance(stars1[star1_2], stars1[star1_3]), distance(stars1[star1_3], stars1[star1_1]))
-                                triangle2 = (distance(stars2[star2_1], stars2[star2_2]), distance(stars2[star2_2], stars2[star2_3]), distance(stars2[star2_3], stars2[star2_1]))
-                                if are_same_triangles(triangle1, triangle2, 0.1):
-                                    # determine which star in triangle1 is which star in triangle2, by the distance to the center of the triangle
-                                    # the closest star to the center of the triangles is the same star in both triangles
-                                    # when the stars are matched, add them to the matched_pairs list as a pair
-                                    center1 = (sum([star[0] for star in [stars1[star1_1], stars1[star1_2], stars1[star1_3]]])/3, sum([star[1] for star in [stars1[star1_1], stars1[star1_2], stars1[star1_3]]])/3)
-                                    center2 = (sum([star[0] for star in [stars2[star2_1], stars2[star2_2], stars2[star2_3]]])/3, sum([star[1] for star in [stars2[star2_1], stars2[star2_2], stars2[star2_3]]])/3)
-
-                                    star1 = min([stars1[star1_1], stars1[star1_2], stars1[star1_3]], key=lambda star: distance(star, center1))
-                                    star2 = min([stars2[star2_1], stars2[star2_2], stars2[star2_3]], key=lambda star: distance(star, center2))
-
-                                    star3 = max([stars1[star1_1], stars1[star1_2], stars1[star1_3]], key=lambda star: distance(star, center1))
-                                    star4 = max([stars2[star2_1], stars2[star2_2], stars2[star2_3]], key=lambda star: distance(star, center2))
-
-                                    star5 = [stars1[star1_1], stars1[star1_2], stars1[star1_3]]
-                                    star5.remove(star1)
-                                    star5.remove(star3)
-                                    star6 = [stars2[star2_1], stars2[star2_2], stars2[star2_3]]
-                                    star6.remove(star2)
-                                    star6.remove(star4)
-
-                                    matched_pairs.append((star1, star2))
-                                    matched_pairs.append((star3, star4))
-                                    matched_pairs.append((star5[0], star6[0]))
-                                    found = True
-                                    break
-                            
-                        if found: break
-                    if found: break
-                if found: break
-            if found: break
-
-                                                                        
-                                    
-
-                        
+    # make sure stars1 is the smaller image
+    if len(stars1) > len(stars2):
+        print("warning: stars1 is larger than stars2, swapping..")
+        stars1, stars2 = stars2, stars1
     
-    for pair in matched_pairs:
-        print(stars1.index(pair[0]), stars2.index(pair[1]))
-    return matched_pairs
+    stars1 = [(x, y) for x, y, _, _ in stars1]
+    stars2 = [(x, y) for x, y, _, _ in stars2]
 
+    treshold = 15
+    # iterate over each pair of stars in stars1 and stars2, and find the transformation, rotation and scale that is needed to be performed 
+    # on stars1 to match stars2. Then, check if all the stars in stars1 are within a certain distance from the stars in stars2 after the transformation.
+    bestTransformation = []
+    bestAmountOfMatches = 0
+    for star1_1 in stars1:
+        for star2_1 in stars1:
+            for star3_1 in stars1:
+                if star1_1 == star2_1 or star1_1 == star3_1 or star2_1 == star3_1:
+                    continue
+                for star1_2 in stars2:
+                    for star2_2 in stars2:
+                        for star3_2 in stars2:
+                            if star1_2 == star2_2 or star1_2 == star3_2 or star2_2 == star3_2:
+                                continue
+                            triangle1 = (distance(star1_1, star2_1), distance(star2_1, star3_1), distance(star3_1, star1_1))
+                            triangle2 = (distance(star1_2, star2_2), distance(star2_2, star3_2), distance(star3_2, star1_2))
+                            if not same_triangles(triangle1, triangle2, 0.05):
+                                continue
+                            new_stars1 = transform_point_set(stars1, [star1_1, star2_1, star3_1], [star1_2, star2_2, star3_2])
+                            currAmountOfMatches = 0
+                            for i in new_stars1:
+                                for j in stars2:
+                                    if distance(i, j) < treshold:
+                                        currAmountOfMatches += 1
+                            if currAmountOfMatches > bestAmountOfMatches:
+                                bestAmountOfMatches = currAmountOfMatches
+                                bestTransformation = new_stars1
+    print("best amount of matches: ", bestAmountOfMatches)
+    print("best transformation: ", bestTransformation)
+
+    print(len(bestTransformation), len(stars1))
+
+    # find the same star in bestTransformation and stars2
+    matched_stars = []
+    used_stars = set()
+    for i in range(len(bestTransformation)):
+        for j in range(len(stars2)):
+            if distance(bestTransformation[i], stars2[j]) < treshold and stars2[j] not in used_stars:
+                used_stars.add(stars2[j])
+                matched_stars.append((stars1[i], stars2[j]))
+                print("match found: ", stars1[i], stars2[j], i, j)
+
+    return matched_stars
+            
 def visualize_matched_pairs(matched_pairs):
     """
     Function to visualize matched star pairs.
-
     Args:
         matched_pairs (list): List of pairs of matched star tuples.
-
     Returns:
         None
     """
@@ -120,14 +144,13 @@ def visualize_matched_pairs(matched_pairs):
     y2 = [star2[1] for star1, star2 in matched_pairs if star2 is not None]
     print(len(x2))
     # Create scatter plot of matched stars
-    plt.scatter(x1, y1, color='blue', label='Stars 1', s=10)
-    plt.scatter(x2, y2, color='red', label='Stars 2', s=30)
+    plt.scatter(x1, y1, color='blue', label='Stars 1', s=30)
+    plt.scatter(x2, y2, color='red', label='Stars 2', s=10)
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
     plt.title('Matched Star Pairs')
     plt.legend()
     plt.show()
-
 
 def find_common_stars(image1_path, image2_path):
     # Detect stars in both images
@@ -142,7 +165,7 @@ def find_common_stars(image1_path, image2_path):
 def distance(p1, p2):
     return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
 
-def are_same_triangles(triangle1, triangle2, tolerance=0.1):
+def same_triangles(triangle1, triangle2, tolerance=0.1):
     # Normalize side lengths
     min_side_length1 = min(triangle1)
     normalized_triangle1 = [side_length / min_side_length1 for side_length in triangle1]
@@ -161,15 +184,4 @@ def are_same_triangles(triangle1, triangle2, tolerance=0.1):
     return True
 
 
-
-image1_stars = detect_stars('stars.png', create_image=True)
-image2_stars = detect_stars('stars2.png', create_image=True)
-
-# in image1_stars 0, 1, 2 are
-# in image2_stars 4, 9, 3
-# calculate the distances between them to compare the triangle:
-# print(are_same_triangles((distance(image1_stars[0], image1_stars[1]), distance(image1_stars[1], image1_stars[2]), distance(image1_stars[2], image1_stars[0])) ,(distance(image2_stars[4], image2_stars[9]), distance(image2_stars[9], image2_stars[3]), distance(image2_stars[3], image2_stars[4])) ))
-
-
-# Path: star_matching.py
 print(find_common_stars('stars.png', 'stars2.png'))
