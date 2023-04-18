@@ -18,3 +18,5 @@ The function also takes 3 additional arguments: create_image=True, create_json=T
 Use these 3 arguments to customize the output according to your likings. <br>
 
 Feel free to explore the output, if you can not manage to run it yourself, and output example is in the output_example directory. <br> 
+
+<img width="1573" alt="image" src="https://user-images.githubusercontent.com/90526270/232882876-3bd45e08-2c5f-4f87-8610-e40e1cda2e86.png">
