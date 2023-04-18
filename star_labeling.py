@@ -224,13 +224,13 @@ def print_and_save_results(res):
     for pair in res:
         print(pair)
     # save to json file
-    with open('results.json', 'w') as f:
+    with open('pairs_of_stars.json', 'w') as f:
         json.dump(res, f)
 
-def find_common_stars(image1_path, image2_path):
+def find_common_stars(image1_path, image2_path, create_image=True, create_json=True, visualize=True):
     # Detect stars in both images
-    image1_stars = detect_stars(image1_path, create_image=True)
-    image2_stars = detect_stars(image2_path, create_image=True)
+    image1_stars = detect_stars(image1_path, create_image=create_image, create_json=create_json)
+    image2_stars = detect_stars(image2_path, create_image=create_image, create_json=create_json)
 
     if len(image1_stars) == 0 or len(image2_stars) == 0:
         print("No stars detected in one or both images.")
@@ -239,11 +239,13 @@ def find_common_stars(image1_path, image2_path):
         print("big input, optimazing")
         res = match_stars_random(image1_stars, image2_stars)
         print_and_save_results(res)
-        visualize_matched_pairs(res)
+        if visualize:
+            visualize_matched_pairs(res)
     else:
         res = match_stars(image1_stars, image2_stars)
         print_and_save_results(res)
-        visualize_matched_pairs(res)
+        if visualize:
+            visualize_matched_pairs(res)
 
 def distance(p1, p2):
     return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
@@ -266,9 +268,9 @@ def same_triangles(triangle1, triangle2, tolerance=0.1):
 
     return True
 
-
-print(find_common_stars('data/ST_db1.png', 'data/fr1.jpg'))
-# print(find_common_stars('data/stars.png', 'data/stars2.png'))
-# print(find_common_stars('data/fr2.jpg', 'data/fr1.jpg'))
+if __name__ == "__main__":
+    print(find_common_stars('data/ST_db1.png', 'data/fr1.jpg'))
+    print(find_common_stars('data/stars.png', 'data/stars2.png'))
+    # print(find_common_stars('data/fr2.jpg', 'data/fr1.jpg'))
 
 
